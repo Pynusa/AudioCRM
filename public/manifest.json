@@ -1,0 +1,51 @@
+{
+  "name": "Транскрибатор",
+  "short_name": "Транскрибатор",
+  "description": "Приложение для транскрибации аудио в текст с использованием нейросетей",
+  "start_url": "/?source=pwa",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#4f46e5",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "share_target": {
+    "action": "/_share-target",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url",
+      "files": [
+        {
+          "name": "audio",
+          "accept": [
+            "audio/*",
+            "video/*",
+            ".mp3",
+            ".wav",
+            ".m4a",
+            ".ogg",
+            ".webm",
+            ".mp4",
+            ".aac",
+            ".flac",
+            "application/ogg"
+          ]
+        }
+      ]
+    }
+  }
+}
