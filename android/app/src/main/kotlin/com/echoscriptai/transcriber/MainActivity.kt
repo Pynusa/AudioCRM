@@ -20,6 +20,9 @@ class MainActivity : FlutterActivity() {
     private var channel: MethodChannel? = null
     private val pending = mutableListOf<Map<String, String>>()
     private val worker = Executors.newSingleThreadExecutor()
+    private var callsChannel: MethodChannel? = null
+    private var permResult: MethodChannel.Result? = null
+    private var openCalls = false
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
