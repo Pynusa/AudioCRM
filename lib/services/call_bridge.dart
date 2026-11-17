@@ -31,7 +31,7 @@ class RecordingEntry {
 
 class CallBridge {
   static const _ch = MethodChannel('echoscript/calls');
-
+  static Future<void> requestOverlay() => _ch.invokeMethod('requestOverlay');
   static void onOpenCalls(void Function() cb) {
     _ch.setMethodCallHandler((c) async {
       if (c.method == 'openCalls') cb();
