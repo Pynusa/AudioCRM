@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-
+import '../services/call_bridge.dart';
 import '../services/amo_service.dart';
 
 class AmoSettingsScreen extends StatefulWidget {
@@ -184,6 +184,21 @@ class _AmoSettingsScreenState extends State<AmoSettingsScreen> {
             ),
             ListTile(
               title: const Text('Поля сделки при звонке'),
+            ListTile(
+              title: const Text('Поля компании на плашке звонка'),
+              subtitle: Text(s.companyFields.isEmpty
+                  ? 'Только название компании'
+                  : 'Выбрано: ${s.companyFields.length}'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: _busy ? null : () => _pickFields('companies', s.companyFields),
+            ),
+            ListTile(
+              title: const Text('Плашка при входящем звонке'),
+              subtitle: const Text('Разрешить показ поверх других приложений'),
+              trailing: const Icon(Icons.open_in_new),
+              onTap: CallBridge.requestOverlay,
+            ),
+
               subtitle: Text(_count(s.leadFields)),
               trailing: const Icon(Icons.chevron_right),
               onTap: _busy ? null : () => _pickFields('leads', s.leadFields),
