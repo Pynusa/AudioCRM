@@ -6,6 +6,8 @@ import '../services/platform_services.dart';
 import 'history_screen.dart';
 import 'settings_screen.dart';
 import 'transcribe_screen.dart';
+import '../services/call_bridge.dart';
+import 'calls_screen.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
@@ -25,9 +27,16 @@ class _HomeShellState extends State<HomeShell> {
       state.addAudio(items);
       if (mounted) setState(() => _tab = 0);
     });
+    CallBridge.onOpenCalls(() {
+      if (mounted) setState(() => _tab = 3);
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final items = await ShareIntake.initial();
       if (items.isNotEmpty) state.addAudio(items);
+      if (await CallBridge.consumeOpenCalls() && mounted) {
+        setState(() => _tab = 3);
+      }
+
     });
   }
 
@@ -42,6 +51,7 @@ class _HomeShellState extends State<HomeShell> {
           TranscribeScreen(onOpenSettings: () => setState(() => _tab = 2)),
           const HistoryScreen(),
           const SettingsScreen(),
+          const CallsScreen(),
         ],
       ),
       bottomNavigationBar: NavigationBar(
@@ -65,6 +75,12 @@ class _HomeShellState extends State<HomeShell> {
             selectedIcon: Icon(Icons.key),
             label: 'Ключи и модели',
           ),
+          const NavigationDestination(
+            icon: Icon(Icons.call_outlined),
+            selectedIcon: Icon(Icons.call),
+            label: 'Звонки',
+          ),
+
         ],
       ),
     );
