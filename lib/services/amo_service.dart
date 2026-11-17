@@ -23,6 +23,7 @@ class AmoSettings {
   String recFolder;
   List<int> contactFields;
   List<int> leadFields;
+  List<int> companyFields;
 
   AmoSettings({
     this.domain = '',
@@ -35,8 +36,10 @@ class AmoSettings {
     this.recFolder = 'Recordings/Call',
     List<int>? contactFields,
     List<int>? leadFields,
+    List<int>? companyFields,
   })  : contactFields = contactFields ?? [],
-        leadFields = leadFields ?? [];
+        leadFields = leadFields ?? [],
+        companyFields = companyFields ?? [];
 
   bool get ready => host.isNotEmpty && token.trim().isNotEmpty && userId != null;
 
@@ -58,6 +61,7 @@ class AmoSettings {
         'recFolder': recFolder,
         'contactFields': contactFields,
         'leadFields': leadFields,
+        'companyFields': companyFields,
       };
 
   static Future<AmoSettings> load() async {
@@ -77,6 +81,7 @@ class AmoSettings {
         recFolder: j['recFolder'] as String? ?? 'Recordings/Call',
         contactFields: List<int>.from(j['contactFields'] as List? ?? const []),
         leadFields: List<int>.from(j['leadFields'] as List? ?? const []),
+        companyFields: List<int>.from(j['companyFields'] as List? ?? const []),
       );
     } catch (_) {
       return AmoSettings();
