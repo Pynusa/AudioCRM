@@ -57,16 +57,76 @@ class MainActivity : FlutterActivity() {
                     }
                 }
             }
+                  callsChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CallBridge.CHANNEL)
+        callsChannel?.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "hasPermissions" -> result.success(CallBridge.hasPermissions(this))
+                "requestPermissions" -> {
+                    permResult = result
+                    requestPermissions(CallBridge.permissions(), 4711)
+                }
+                "consumeOpenCalls" -> {
+                    val v = openCalls || intent?.action == CallBridge.ACTION_OPEN_CALLS
+                    openCalls = false
+                    if (intent?.action == CallBridge.ACTION_OPEN_CALLS) intent?.action = null
+                    result.success(v)
+                }
+                "recentCalls" -> worker.execute {
+                    try {
+                        val r = CallBridge.recentCalls(this, call.argument<Int>("limit") ?: 50)
+                        runOnUiThread { result.success(r) }
+                    } catch (e: Exception) {
+                        runOnUiThread { result.error("CALLS", e.message ?: e.toString(), null) }
+                    }
+                }
+                "recordings" -> worker.execute {
+                    try {
+                        val since = (call.argument<Number>("since") ?: 0).toLong()
+                        val r = CallBridge.recordings(this, since)
+                        runOnUiThread { result.success(r) }
+                    } catch (e: Exception) {
+                        runOnUiThread { result.error("REC", e.message ?: e.toString(), null) }
+                    }
+                }
+                "importRecording" -> worker.execute {
+                    try {
+                        val m = copyToCache(Uri.parse(call.argument<String>("uri")))
+                        runOnUiThread {
+                            if (m == null) result.error("REC", "Не удалось прочитать запись", null)
+                            else result.success(m)
+                        }
+                    } catch (e: Exception) {
+                        runOnUiThread { result.error("REC", e.message ?: e.toString(), null) }
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+  
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        if (intent.action == CallBridge.ACTION_OPEN_CALLS) {
+            callsChannel?.invokeMethod("openCalls", null)
+        }
+
         setIntent(intent)
         handleIntent(intent)
         intent.action = null
         if (pending.isNotEmpty()) {
             channel?.invokeMethod("onSharedFiles", ArrayList(pending))
             pending.clear()
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int, permissions: Array<out String>, grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 4711) {
+            permResult?.success(CallBridge.hasPermissions(this))
+            permResult = null
         }
     }
 
