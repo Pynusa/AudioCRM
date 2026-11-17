@@ -17,6 +17,17 @@ class CallReceiver : BroadcastReceiver() {
     override fun onReceive(ctx: Context, intent: Intent) {
         if (intent.action != TelephonyManager.ACTION_PHONE_STATE_CHANGED) return
         val state = intent.getStringExtra(TelephonyManager.EXTRA_STATE) ?: return
+
+        if (state == TelephonyManager.EXTRA_STATE_RINGING) {
+            @Suppress("DEPRECATION")
+            val number = intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER)
+            if (!number.isNullOrEmpty()) {
+                val pending = goAsync()
+                CallerOverlay.show(ctx.applicationContext, number) { pending.finish() }
+            }
+        }
+        if (state == TelephonyManager.EXTRA_STATE_IDLE) CallerOverlay.hide()
+
         val prefs = ctx.getSharedPreferences("call_state", Context.MODE_PRIVATE)
         val prev = prefs.getString("prev", TelephonyManager.EXTRA_STATE_IDLE)
         if (state == prev) return
@@ -25,6 +36,7 @@ class CallReceiver : BroadcastReceiver() {
             prev == TelephonyManager.EXTRA_STATE_OFFHOOK
         ) notifyCallEnded(ctx)
     }
+
 
     private fun notifyCallEnded(ctx: Context) {
         if (Build.VERSION.SDK_INT >= 33 &&
