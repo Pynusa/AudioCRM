@@ -32,6 +32,7 @@ class MainActivity : FlutterActivity() {
                     result.success(ArrayList(pending))
                     pending.clear()
                 }
+                
                 else -> result.notImplemented()
             }
         }
@@ -99,6 +100,17 @@ class MainActivity : FlutterActivity() {
                         runOnUiThread { result.error("REC", e.message ?: e.toString(), null) }
                     }
                 }
+                "canOverlay" -> result.success(android.provider.Settings.canDrawOverlays(this))
+                "requestOverlay" -> {
+                    startActivity(
+                        Intent(
+                            android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:$packageName")
+                        )
+                    )
+                    result.success(null)
+                }
+
                 else -> result.notImplemented()
             }
         }
