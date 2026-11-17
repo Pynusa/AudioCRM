@@ -184,6 +184,10 @@ class _AmoSettingsScreenState extends State<AmoSettingsScreen> {
             ),
             ListTile(
               title: const Text('Поля сделки при звонке'),
+              subtitle: Text(_count(s.leadFields)),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: _busy ? null : () => _pickFields('leads', s.leadFields),
+            ),
             ListTile(
               title: const Text('Поля компании на плашке звонка'),
               subtitle: Text(s.companyFields.isEmpty
@@ -199,11 +203,6 @@ class _AmoSettingsScreenState extends State<AmoSettingsScreen> {
               onTap: CallBridge.requestOverlay,
             ),
 
-              subtitle: Text(_count(s.leadFields)),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: _busy ? null : () => _pickFields('leads', s.leadFields),
-            ),
-            const SizedBox(height: 12),
             TextField(
               controller: _folder,
               decoration: const InputDecoration(
