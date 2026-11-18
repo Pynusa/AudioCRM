@@ -63,15 +63,21 @@ object CallerOverlay {
     private fun get(host: String, token: String, path: String): JSONObject? {
         val c = URL("https://$host$path").openConnection() as HttpURLConnection
         try {
-            c.connectTimeout = 3000
-            c.readTimeout = 3000
+            c.connectTimeout = 5000
+            c.readTimeout = 5000
             c.setRequestProperty("Authorization", "Bearer $token")
-            if (c.responseCode != 200) return null
+            val code = c.responseCode
+            if (code == 204) return null
+            if (code != 200) throw Exception("ошибка $code")
             return JSONObject(c.inputStream.bufferedReader().readText())
         } finally {
             c.disconnect()
         }
     }
+
+    private fun reason(e: Exception): String =
+        if (e is java.net.SocketTimeoutException) "amoCRM не ответил вовремя"
+        else (e.message ?: e.toString())
 
     private fun values(f: JSONObject): String {
         val vs = f.optJSONArray("values") ?: return ""
@@ -115,43 +121,75 @@ object CallerOverlay {
         val name = str(contact, "name").ifEmpty { number }
         post(ctx, s, name, emptyList())
 
-        val lines = ArrayList<String>()
         val emb = contact.optJSONObject("_embedded")
+        val companyLines = ArrayList<String>()
+        val leadLines = ArrayList<String>()
 
-        val companyId = emb?.optJSONArray("companies")?.optJSONObject(0)?.optLong("id") ?: 0L
-        if (companyId > 0) {
-            val co = get(host, token, "/api/v4/companies/$companyId")
-            if (co != null) {
-                lines.add("Компания: " + str(co, "name"))
-                val ids = HashSet<Long>()
-                val only = cfg.optJSONArray("companyFields")
-                if (only != null) for (i in 0 until only.length()) ids.add(only.optLong(i))
-                val cf = co.optJSONArray("custom_fields_values")
-                if (cf != null) for (i in 0 until cf.length()) {
-                    val f = cf.optJSONObject(i) ?: continue
-                    if (!ids.contains(f.optLong("field_id"))) continue
-                    val v = values(f)
-                    if (v.isNotEmpty()) lines.add(str(f, "field_name") + ": " + v)
+        val t1 = thread {
+            try {
+                val companyId =
+                    emb?.optJSONArray("companies")?.optJSONObject(0)?.optLong("id") ?: 0L
+                if (companyId <= 0) {
+                    companyLines.add("Компания не привязана")
+                } else {
+                    val co = get(host, token, "/api/v4/companies/$companyId")
+                    if (co != null) {
+                        companyLines.add("Компания: " + str(co, "name"))
+                        val ids = HashSet<Long>()
+                        val only = cfg.optJSONArray("companyFields")
+                        if (only != null) for (i in 0 until only.length()) ids.add(only.optLong(i))
+                        val cf = co.optJSONArray("custom_fields_values")
+                        if (cf != null) for (i in 0 until cf.length()) {
+                            val f = cf.optJSONObject(i) ?: continue
+                            if (!ids.contains(f.optLong("field_id"))) continue
+                            val v = values(f)
+                            if (v.isNotEmpty()) companyLines.add(str(f, "field_name") + ": " + v)
+                        }
+                    }
                 }
+            } catch (e: Exception) {
+                companyLines.add("Компания: не загрузилась (" + reason(e) + ")")
             }
         }
 
-        val leads = emb?.optJSONArray("leads")
-        if (leads != null && leads.length() > 0) {
-            val q = (0 until minOf(leads.length(), 50)).joinToString("&") {
-                "filter%5Bid%5D%5B$it%5D=" + (leads.optJSONObject(it)?.optLong("id") ?: 0L)
+        val t2 = thread {
+            try {
+                val leads = emb?.optJSONArray("leads")
+                if (leads == null || leads.length() == 0) {
+                    leadLines.add("Сделок нет")
+                } else {
+                    val q = (0 until minOf(leads.length(), 50)).joinToString("&") {
+                        "filter%5Bid%5D%5B$it%5D=" + (leads.optJSONObject(it)?.optLong("id") ?: 0L)
+                    }
+                    val arr = get(host, token, "/api/v4/leads?$q&limit=50")
+                        ?.optJSONObject("_embedded")?.optJSONArray("leads")
+                    var best: JSONObject? = null
+                    var bestOpen = false
+                    if (arr != null) for (i in 0 until arr.length()) {
+                        val l = arr.optJSONObject(i) ?: continue
+                        val st = l.optLong("status_id")
+                        val open = st != 142L && st != 143L
+                        val cur = best
+                        if (cur == null || (open && !bestOpen) ||
+                            (open == bestOpen && l.optLong("updated_at") > cur.optLong("updated_at"))
+                        ) {
+                            best = l
+                            bestOpen = open
+                        }
+                    }
+                    val l = best
+                    if (l != null) {
+                        leadLines.add((if (bestOpen) "Сделка: " else "Сделка (закрыта): ") + str(l, "name"))
+                    }
+                }
+            } catch (e: Exception) {
+                leadLines.add("Сделка: не загрузилась (" + reason(e) + ")")
             }
-            val arr = get(host, token, "/api/v4/leads?$q&limit=50")
-                ?.optJSONObject("_embedded")?.optJSONArray("leads")
-            var last: JSONObject? = null
-            if (arr != null) for (i in 0 until arr.length()) {
-                val l = arr.optJSONObject(i) ?: continue
-                val cur = last
-                if (cur == null || l.optLong("created_at") > cur.optLong("created_at")) last = l
-            }
-            val l = last
-            if (l != null) lines.add("Сделка: " + str(l, "name"))
         }
+
+        t1.join()
+        t2.join()
+        val lines = companyLines + leadLines
         if (lines.isNotEmpty()) post(ctx, s, name, lines)
     }
 
