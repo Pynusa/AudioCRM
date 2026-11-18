@@ -8,6 +8,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import '../models/models.dart';
 import 'ai_service.dart';
 import 'provider_catalog.dart';
+import 'proxy.dart';
 
 enum AppStatus { idle, processing, success, error }
 
