@@ -178,6 +178,7 @@ class AppState extends ChangeNotifier {
     if (t.startsWith('[') || t.startsWith('{')) {
       try {
         final v = jsonDecode(t);
+        if (v is Map) await _restoreExtras(v);
         final list = v is List ? v : (v is Map ? (v['keys'] as List? ?? []) : []);
         for (final e in list.whereType<Map>()) {
           final entry = ApiKeyEntry.fromJson(Map<String, dynamic>.from(e));
@@ -216,8 +217,51 @@ class AppState extends ChangeNotifier {
     return added;
   }
 
-  String exportKeysJson() => const JsonEncoder.withIndent('  ')
-      .convert({'app': 'EchoScript AI', 'keys': keys.map((k) => k.toJson()).toList()});
+    String exportKeysJson() {
+    Map<String, dynamic>? amo;
+    try {
+      final raw = _prefs.getString('amo_settings_v1');
+      if (raw != null) {
+        amo = Map<String, dynamic>.from(jsonDecode(raw) as Map)
+          ..remove('userId')
+          ..remove('userName');
+      }
+    } catch (_) {}
+    return const JsonEncoder.withIndent('  ').convert({
+      'app': 'EchoScript AI',
+      'keys': keys.map((k) => k.toJson()).toList(),
+      'proxy': proxy.settings.toJson(),
+      if (amo != null) 'amo': amo,
+    });
+  }
+
+  /// Восстанавливает из резервной копии настройки прокси и amoCRM.
+  Future<void> _restoreExtras(Map v) async {
+    try {
+      final p = v['proxy'];
+      if (p is Map && '${p['host'] ?? ''}'.isNotEmpty) {
+        await _prefs.setString('proxy_v1', jsonEncode(p));
+        await proxy.load();
+      }
+      final a = v['amo'];
+      if (a is Map) {
+        var cur = <String, dynamic>{};
+        final raw = _prefs.getString('amo_settings_v1');
+        if (raw != null) {
+          cur = Map<String, dynamic>.from(jsonDecode(raw) as Map);
+        }
+        final next = Map<String, dynamic>.from(a)
+          ..remove('userId')
+          ..remove('userName')
+          ..removeWhere((k, val) => val == null || val == '');
+        await _prefs.setString(
+            'amo_settings_v1', jsonEncode({...cur, ...next}));
+      }
+    } catch (e) {
+      debugPrint('Restore error: $e');
+    }
+  }
+
 
   void _ensureValidSelection() {
     if (keyById(settings.transcribeKeyId) == null) {
