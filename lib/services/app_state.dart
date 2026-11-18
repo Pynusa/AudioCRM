@@ -17,7 +17,8 @@ class AppState extends ChangeNotifier {
   static const _kHistory = 'history_v1';
   static const _kModelCache = 'model_cache_v1';
 
-  final AiService ai = AiService();
+  final ProxyRouter proxy = ProxyRouter();
+  late final AiService ai = AiService(proxy);
   late SharedPreferences _prefs;
 
   List<ApiKeyEntry> keys = [];
@@ -41,6 +42,7 @@ class AppState extends ChangeNotifier {
 
   Future<void> load() async {
     _prefs = await SharedPreferences.getInstance();
+    await proxy.load();
     try {
       final k = _prefs.getString(_kKeys);
       if (k != null) {
