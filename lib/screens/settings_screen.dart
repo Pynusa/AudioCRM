@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
-
 import '../models/models.dart';
 import '../services/app_state.dart';
 import '../services/platform_services.dart';
 import '../services/provider_catalog.dart';
 import '../widgets/model_picker.dart';
+import 'proxy_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -263,7 +263,17 @@ class SettingsScreen extends StatelessWidget {
               ),
             ]),
           ),
-
+          const _Header('Сеть'),
+          Card(
+            child: ListTile(
+              leading: const Icon(Icons.vpn_lock),
+              title: const Text('Прокси-сервер'),
+              subtitle: const Text('Запросы к выбранным ИИ через прокси'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const ProxyScreen())),
+            ),
+          ),
           const _Header('Оформление'),
           Card(
             child: Padding(
