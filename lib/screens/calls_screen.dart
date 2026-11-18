@@ -438,6 +438,26 @@ class _CallResultScreenState extends State<CallResultScreen> {
     final busy = _busy.isNotEmpty;
     return Scaffold(
       appBar: AppBar(title: Text(f?.contactName ?? c.number)),
+      bottomNavigationBar: SafeArea(
+        minimum: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (busy) ...[
+              const LinearProgressIndicator(),
+              const SizedBox(height: 6),
+              Text(_busy, maxLines: 1, overflow: TextOverflow.ellipsis),
+              const SizedBox(height: 6),
+            ],
+            FilledButton(
+              onPressed: busy ? null : _save,
+              child: const Text('Сохранить в amoCRM'),
+            ),
+          ],
+        ),
+      ),
+
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -558,17 +578,6 @@ class _CallResultScreenState extends State<CallResultScreen> {
               onTap: _pickDue,
             ),
           ],
-          const SizedBox(height: 16),
-          if (busy) ...[
-            const LinearProgressIndicator(),
-            const SizedBox(height: 8),
-            Text(_busy),
-            const SizedBox(height: 8),
-          ],
-          FilledButton(
-            onPressed: busy ? null : _save,
-            child: const Text('Сохранить в amoCRM'),
-          ),
         ],
       ),
     );
