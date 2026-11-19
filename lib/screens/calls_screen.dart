@@ -172,6 +172,10 @@ class _CallResultScreenState extends State<CallResultScreen> {
   String _busy = '';
   final _done = <String>{};
   int? _createdLeadId;
+  RecordingEntry? _rec;
+  List<RecordingEntry> _recs = [];
+  String _recHow = '';
+  bool _playing = false;
 
   List<AmoLead> get _openLeads =>
       _found?.leads.where((l) => !l.closed).toList() ?? [];
@@ -182,6 +186,11 @@ class _CallResultScreenState extends State<CallResultScreen> {
     final t = DateTime.now().add(const Duration(days: 1));
     _due = DateTime(t.year, t.month, t.day, 10);
     _lookup();
+    CallBridge.onPlaybackDone = () {
+      if (mounted) setState(() => _playing = false);
+    };
+    _findRecording();
+
   }
 
   void _snack(String m) =>
@@ -252,6 +261,95 @@ class _CallResultScreenState extends State<CallResultScreen> {
     );
   }
 
+    @override
+  void dispose() {
+    CallBridge.onPlaybackDone = null;
+    CallBridge.stopPlayback().catchError((_) {});
+    super.dispose();
+  }
+
+  Future<void> _findRecording() async {
+    try {
+      final c = widget.call;
+      final all = await CallBridge.recordings(
+          c.date.subtract(const Duration(hours: 12)));
+      final folder = widget.settings.recFolder.trim().toLowerCase();
+      final inFolder = all
+          .where((r) => folder.isEmpty || r.folder.toLowerCase().contains(folder))
+          .toList();
+      _recs = inFolder.isEmpty ? all : inFolder;
+      _autoMatch();
+    } catch (_) {}
+    if (mounted) setState(() {});
+  }
+
+  /// Ищет запись этого звонка: по номеру или имени в названии файла,
+  /// затем по близости ко времени окончания звонка.
+  void _autoMatch() {
+    final c = widget.call;
+    final d = AmoService.digits10(c.number);
+    final nm = c.name.trim().toLowerCase();
+    final from = c.date.subtract(const Duration(seconds: 60));
+    final to = c.end.add(const Duration(minutes: 5));
+    RecordingEntry? best;
+    var bestNamed = false;
+    var bestDist = 0;
+    for (final r in _recs) {
+      if (r.date.isBefore(from) || r.date.isAfter(to)) continue;
+      final n = r.name.toLowerCase();
+      final named =
+          (d.length >= 7 && n.replaceAll(RegExp(r'\D'), '').contains(d)) ||
+              (nm.length >= 3 && n.contains(nm));
+      final dist = r.date.difference(c.end).inSeconds.abs();
+      if (!named && dist > 120) continue;
+      if (best == null ||
+          (named && !bestNamed) ||
+          (named == bestNamed && dist < bestDist)) {
+        best = r;
+        bestNamed = named;
+        bestDist = dist;
+      }
+    }
+    _rec = best;
+    _recHow = best == null
+        ? ''
+        : (bestNamed ? 'найдена по номеру' : 'подобрана по времени, проверьте');
+  }
+
+  Future<void> _stopPlay() async {
+    if (!_playing) return;
+    try {
+      await CallBridge.stopPlayback();
+    } catch (_) {}
+    if (mounted) setState(() => _playing = false);
+  }
+
+  Future<void> _togglePlay() async {
+    final r = _rec;
+    if (r == null) return;
+    if (_playing) {
+      await _stopPlay();
+      return;
+    }
+    try {
+      await CallBridge.play(r.uri);
+      if (mounted) setState(() => _playing = true);
+    } catch (e) {
+      if (mounted) _snack('$e');
+    }
+  }
+
+  Future<void> _chooseRecording() async {
+    await _stopPlay();
+    if (!mounted) return;
+    final r = await _pickRecording(_recs);
+    if (r == null || !mounted) return;
+    setState(() {
+      _rec = r;
+      _recHow = 'выбрана вручную';
+    });
+  }
+
   Future<void> _transcribe() async {
     final st = context.read<AppState>();
     final key = st.transcribeKey;
@@ -259,31 +357,13 @@ class _CallResultScreenState extends State<CallResultScreen> {
       _snack('Добавьте API-ключ на вкладке «Ключи и модели».');
       return;
     }
-    setState(() => _busy = 'Поиск записи…');
+    if (_rec == null) await _chooseRecording();
+    final rec = _rec;
+    if (rec == null || !mounted) return;
+    await _stopPlay();
+    if (!mounted) return;
+    setState(() => _busy = 'Подготовка: ${rec.name}');
     try {
-      final c = widget.call;
-      final recs = await CallBridge.recordings(
-          c.date.subtract(const Duration(hours: 12)));
-      final folder = widget.settings.recFolder.trim().toLowerCase();
-      final inFolder = recs
-          .where((r) => folder.isEmpty || r.folder.toLowerCase().contains(folder))
-          .toList();
-      final from = c.date.subtract(const Duration(seconds: 30));
-      final to = c.end.add(const Duration(minutes: 3));
-      RecordingEntry? rec;
-      for (final r in inFolder) {
-        if (!r.date.isBefore(from) && !r.date.isAfter(to)) {
-          rec = r;
-          break;
-        }
-      }
-      if (rec == null) {
-        if (!mounted) return;
-        setState(() => _busy = '');
-        rec = await _pickRecording(inFolder.isEmpty ? recs : inFolder);
-        if (rec == null || !mounted) return;
-      }
-      setState(() => _busy = 'Подготовка записи…');
       final f = await CallBridge.importRecording(rec.uri);
       final audio = AudioItem(
         name: f.name,
@@ -333,7 +413,7 @@ class _CallResultScreenState extends State<CallResultScreen> {
       _snack('$e');
     }
   }
-
+  
   Future<void> _pickDue() async {
     final d = await showDatePicker(
       context: context,
@@ -485,6 +565,24 @@ class _CallResultScreenState extends State<CallResultScreen> {
             decoration: const InputDecoration(labelText: 'Результат звонка'),
           ),
           const SizedBox(height: 8),
+          Card(
+            child: ListTile(
+              leading: IconButton(
+                icon: Icon(_playing ? Icons.stop : Icons.play_arrow),
+                onPressed: _rec == null || busy ? null : _togglePlay,
+              ),
+              title: Text(_rec?.name ?? 'Запись звонка не найдена'),
+              subtitle: Text(_rec == null
+                  ? 'Выберите файл вручную'
+                  : '${fmtDate(_rec!.date)} · ${formatBytes(_rec!.size)} · $_recHow'),
+              trailing: TextButton(
+                onPressed: busy ? null : _chooseRecording,
+                child: Text(_rec == null ? 'Выбрать' : 'Другая'),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+
           OutlinedButton.icon(
             onPressed: busy ? null : _transcribe,
             icon: const Icon(Icons.graphic_eq),
