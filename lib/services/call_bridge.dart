@@ -32,12 +32,16 @@ class RecordingEntry {
 class CallBridge {
   static const _ch = MethodChannel('echoscript/calls');
   static Future<void> requestOverlay() => _ch.invokeMethod('requestOverlay');
+    static void Function()? onPlaybackDone;
   static void onOpenCalls(void Function() cb) {
     _ch.setMethodCallHandler((c) async {
       if (c.method == 'openCalls') cb();
+      if (c.method == 'playbackDone') onPlaybackDone?.call();
     });
   }
-
+  static Future<void> play(String uri) =>
+      _ch.invokeMethod('playRecording', {'uri': uri});
+  static Future<void> stopPlayback() => _ch.invokeMethod('stopRecording');
   static Future<bool> consumeOpenCalls() async {
     try {
       return await _ch.invokeMethod<bool>('consumeOpenCalls') ?? false;
