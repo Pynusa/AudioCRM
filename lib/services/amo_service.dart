@@ -122,7 +122,10 @@ class AmoLookup {
   final String contactName;
   final List<AmoField> fields;
   final List<AmoLead> leads;
-  AmoLookup(this.contactId, this.contactName, this.fields, this.leads);
+  final String company;
+  final List<AmoField> companyFields;
+  AmoLookup(this.contactId, this.contactName, this.fields, this.leads,
+      {this.company = '', this.companyFields = const []});
 }
 
 class AmoService {
@@ -274,11 +277,34 @@ class AmoService {
         ));
       }
     }
+
+    var company = '';
+    var companyFields = <AmoField>[];
+    final coId = (c['_embedded']?['companies'] as List? ?? const [])
+        .whereType<Map>()
+        .map((e) => e['id'])
+        .firstOrNull;
+    if (coId != null) {
+      try {
+        final co = await _req('GET', '/api/v4/companies/$coId');
+        if (co is Map) {
+          company = '${co['name'] ?? ''}';
+          if (s.companyFields.isNotEmpty) {
+            companyFields = _fields(co['custom_fields_values'], s.companyFields);
+          }
+        }
+      } catch (e) {
+        company = 'не загрузилась ($e)';
+      }
+    }
+
     return AmoLookup(
       c['id'] as int,
       '${c['name'] ?? ''}',
       _fields(c['custom_fields_values'], s.contactFields),
       leads,
+      company: company,
+      companyFields: companyFields,
     );
   }
 
