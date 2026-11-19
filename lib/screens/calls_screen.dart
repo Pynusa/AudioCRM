@@ -190,7 +190,13 @@ class _CallResultScreenState extends State<CallResultScreen> {
       if (mounted) setState(() => _playing = false);
     };
     _findRecording();
+  }
 
+  @override
+  void dispose() {
+    CallBridge.onPlaybackDone = null;
+    CallBridge.stopPlayback().catchError((_) {});
+    super.dispose();
   }
 
   void _snack(String m) =>
@@ -259,13 +265,6 @@ class _CallResultScreenState extends State<CallResultScreen> {
               ],
             ),
     );
-  }
-
-    @override
-  void dispose() {
-    CallBridge.onPlaybackDone = null;
-    CallBridge.stopPlayback().catchError((_) {});
-    super.dispose();
   }
 
   Future<void> _findRecording() async {
@@ -413,7 +412,7 @@ class _CallResultScreenState extends State<CallResultScreen> {
       _snack('$e');
     }
   }
-  
+
   Future<void> _pickDue() async {
     final d = await showDatePicker(
       context: context,
@@ -537,7 +536,6 @@ class _CallResultScreenState extends State<CallResultScreen> {
           ],
         ),
       ),
-
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -552,6 +550,13 @@ class _CallResultScreenState extends State<CallResultScreen> {
                   const SizedBox(height: 4),
                   Text(f == null ? 'Номера нет в amoCRM' : f.contactName,
                       style: theme.textTheme.titleMedium),
+                  if (f != null && f.company.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text('Компания: ${f.company}',
+                          style: const TextStyle(fontWeight: FontWeight.w600)),
+                    ),
+                  if (f != null) _fieldsView(f.companyFields),
                   if (f != null) _fieldsView(f.fields),
                 ],
               ),
@@ -566,23 +571,47 @@ class _CallResultScreenState extends State<CallResultScreen> {
           ),
           const SizedBox(height: 8),
           Card(
-            child: ListTile(
-              leading: IconButton(
-                icon: Icon(_playing ? Icons.stop : Icons.play_arrow),
-                onPressed: _rec == null || busy ? null : _togglePlay,
-              ),
-              title: Text(_rec?.name ?? 'Запись звонка не найдена'),
-              subtitle: Text(_rec == null
-                  ? 'Выберите файл вручную'
-                  : '${fmtDate(_rec!.date)} · ${formatBytes(_rec!.size)} · $_recHow'),
-              trailing: TextButton(
-                onPressed: busy ? null : _chooseRecording,
-                child: Text(_rec == null ? 'Выбрать' : 'Другая'),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              child: Row(
+                children: [
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    icon: Icon(_playing ? Icons.stop : Icons.play_arrow),
+                    onPressed: _rec == null || busy ? null : _togglePlay,
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _rec?.name ?? 'Запись звонка не найдена',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                        Text(
+                          _rec == null
+                              ? 'Выберите файл вручную'
+                              : '${fmtDate(_rec!.date)} · ${formatBytes(_rec!.size)} · $_recHow',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    tooltip: 'Выбрать другую запись',
+                    icon: const Icon(Icons.swap_horiz),
+                    onPressed: busy ? null : _chooseRecording,
+                  ),
+                ],
               ),
             ),
           ),
           const SizedBox(height: 8),
-
           OutlinedButton.icon(
             onPressed: busy ? null : _transcribe,
             icon: const Icon(Icons.graphic_eq),
