@@ -23,6 +23,7 @@ class MainActivity : FlutterActivity() {
     private var callsChannel: MethodChannel? = null
     private var permResult: MethodChannel.Result? = null
     private var openCalls = false
+    private var player: android.media.MediaPlayer? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -102,6 +103,31 @@ class MainActivity : FlutterActivity() {
                     } catch (e: Exception) {
                         runOnUiThread { result.error("REC", e.message ?: e.toString(), null) }
                     }
+                }
+                                "playRecording" -> {
+                    try { player?.release() } catch (e: Exception) {}
+                    player = null
+                    val p = android.media.MediaPlayer()
+                    try {
+                        p.setDataSource(this, Uri.parse(call.argument<String>("uri")))
+                        p.setOnCompletionListener { mp ->
+                            mp.release()
+                            if (player === mp) player = null
+                            callsChannel?.invokeMethod("playbackDone", null)
+                        }
+                        p.prepare()
+                        p.start()
+                        player = p
+                        result.success(null)
+                    } catch (e: Exception) {
+                        p.release()
+                        result.error("PLAY", "Не удалось воспроизвести запись: " + (e.message ?: e.toString()), null)
+                    }
+                }
+                "stopRecording" -> {
+                    try { player?.release() } catch (e: Exception) {}
+                    player = null
+                    result.success(null)
                 }
                 "canOverlay" -> result.success(android.provider.Settings.canDrawOverlays(this))
                 "requestOverlay" -> {
