@@ -178,6 +178,21 @@ class AmoService {
     }
     throw AmoException('amoCRM: ошибка ${res.statusCode}. $msg');
   }
+  String _value(dynamic type, dynamic v) {
+    if (v == null) return '';
+    if (type == 'date' || type == 'birthday' || type == 'date_time') {
+      final n = v is num ? v.toInt() : int.tryParse('$v');
+      if (n != null) {
+        final d = DateTime.fromMillisecondsSinceEpoch(n * 1000);
+        String two(int x) => x.toString().padLeft(2, '0');
+        final date = '${two(d.day)}.${two(d.month)}.${d.year}';
+        return type == 'date_time'
+            ? '$date ${two(d.hour)}:${two(d.minute)}'
+            : date;
+      }
+    }
+    return '$v';
+  }
 
   List<AmoField> _fields(dynamic raw, List<int> only) {
     final out = <AmoField>[];
@@ -185,7 +200,7 @@ class AmoService {
       if (only.isNotEmpty && !only.contains(f['field_id'])) continue;
       final v = (f['values'] as List? ?? const [])
           .whereType<Map>()
-          .map((e) => '${e['value'] ?? ''}')
+          .map((e) => _value(f['field_type'], e['value']))
           .where((e) => e.isNotEmpty)
           .join(', ');
       if (v.isNotEmpty) out.add(AmoField('${f['field_name'] ?? ''}', v));
